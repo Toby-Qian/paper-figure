@@ -12,6 +12,59 @@
 </head>
 <body data-journal="default">
 
+<!-- ============ INTRO / LANDING OVERLAY ============ -->
+<div class="intro-overlay" id="introOverlay">
+  <div class="intro-card">
+    <div class="intro-left">
+      <p class="intro-kicker">◼ Journal of Daily Observations · Vol. 01</p>
+      <h1 class="intro-title">Paper&nbsp;Figure&nbsp;Studio</h1>
+      <p class="intro-sub">把任何一张照片，变成一张论文配图。<br/>纯本地运行，零上传，一键随机学术文案。</p>
+      <ul class="intro-features">
+        <li>6 套期刊风格：Nature · Science · Cell · IEEE · Elsevier</li>
+        <li>多图拼版：2×1 / 2×2 / 3×1 … 每格可拖动缩放</li>
+        <li>标注工具：面板标签、箭头、放大框、比例尺、框选</li>
+        <li>80+ 双语图注模板 · 自动生成 Citation</li>
+        <li>响应式：手机 / 桌面都能用</li>
+      </ul>
+      <button type="button" class="intro-btn" id="introEnter">进入编辑器 →</button>
+      <p class="intro-foot">
+        <a href="https://github.com/Toby-Qian/paper-figure" target="_blank" rel="noreferrer">GitHub</a> ·
+        <a href="https://toby-qian.github.io/" target="_blank" rel="noreferrer">Toby Qian</a> ·
+        MIT License · © 2026
+      </p>
+    </div>
+
+    <div class="intro-right">
+      <figure class="intro-sample">
+        <div class="intro-sample__img">
+          <img id="introSampleImg" src="assets/sample-dog.jpg"
+               alt="Sample figure — Shiba in a pet wagon"
+               onerror="this.style.display='none';this.parentElement.classList.add('intro-sample--missing');"/>
+          <span class="intro-sample__label">(a)</span>
+          <span class="intro-sample__arrow"></span>
+          <span class="intro-sample__arrow-text">subject of interest</span>
+          <span class="intro-sample__scale">50 mm</span>
+          <span class="intro-sample__ph">示例图 · 把你的哈士奇 / 柴犬照片保存为 <code>assets/sample-dog.jpg</code> 即可显示</span>
+        </div>
+        <figcaption>
+          <p><b>Figure&nbsp;1.</b> A domestic <i>Canis familiaris</i> specimen
+            (<i>Shiba&nbsp;inu</i>) observed in a controlled outdoor enclosure,
+            maintained within a transport chamber (<b>a</b>) for behavioural
+            stabilization. The subject exhibited tongue-protrusion and
+            periorbital muscle contraction consistent with <i>Panting-Smile
+            Syndrome</i> (PSS, <i>n</i>&nbsp;=&nbsp;1).</p>
+          <p class="intro-sample__cite">
+            Qian, T., Shiba, K., &amp; Doge, S. (2026). Quantitative analysis
+            of tongue protrusion frequency in <i>Shiba inu</i> under ambient
+            sunlight. <i>Purr Review Letters</i>, 42(7), 1337–1342.
+          </p>
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+</div>
+
+
 <header class="masthead">
   <div class="masthead__row">
     <div class="masthead__left">
@@ -133,6 +186,7 @@
           <label class="check"><input type="checkbox" id="fxHeatmap" /> 伪热力图</label>
         </div>
         <p class="hint" id="cellHint">当前布局：1 图（单面板）</p>
+        <p class="hint">💡 <b>拖动图片</b>：点图空白处直接拖；<b>缩放</b>：滚轮 / 双指捏合；<b>双击图片</b>：重置为默认大小。</p>
       </fieldset>
 
       <!-- 2. ANNOTATIONS -->

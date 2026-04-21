@@ -100,6 +100,7 @@
     filters: { grayscale: false, photocopy: false, heatmap: false },
     panelLabelSeq: 0,
     journal: "default",
+    selectedImageIdx: null,
     caption: { fontSize: 16, family: "serif", bold: false, italic: false, color: "#0e0e0e", stroke: "#ffffff" },
     captionSelected: false,
   };
@@ -212,8 +213,9 @@
 
   function fitAllImages() {
     state.images.forEach((o, i) => {
-      const c = cellRect(i);
-      if (o.img) fitImageInCell(o, c);
+      if (!o || !o.img) return;
+      if (o._userPlaced) return; // 用户手动调整过，不自动 refit
+      fitImageInCell(o, cellRect(i));
     });
   }
 
@@ -454,6 +456,9 @@
 
     const sel = currentSel();
     if (sel) drawSelection(sel);
+    if (state.selectedImageIdx !== null && state.selectedImageIdx !== undefined) {
+      drawImageSelection(state.selectedImageIdx);
+    }
 
     ctx.restore();
   }
@@ -650,6 +655,26 @@
     ctx.restore();
   }
 
+  function drawImageSelection(idx) {
+    const o = state.images[idx];
+    if (!o) return;
+    ctx.save();
+    ctx.strokeStyle = "#ffc107";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(o.draw.x, o.draw.y, o.draw.w, o.draw.h);
+    ctx.setLineDash([]);
+    // draw a scale indicator in the corner
+    ctx.fillStyle = "rgba(255,193,7,0.9)";
+    ctx.fillRect(o.draw.x, o.draw.y - 22, 120, 20);
+    ctx.fillStyle = "#000";
+    ctx.font = '500 11px "Inter", sans-serif';
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    ctx.fillText(`图片 ${idx+1} · 拖动/滚轮缩放`, o.draw.x + 6, o.draw.y - 12);
+    ctx.restore();
+  }
+
   // ---------- Hit testing ----------
   function hitTest(x, y) {
     for (let i = state.annotations.length - 1; i >= 0; i--) {
@@ -699,19 +724,53 @@
     const hit = hitTest(p.x, p.y);
     if (hit) {
       state.selectedId = hit.id;
+      state.selectedImageIdx = null;
       pointer = { id: hit.id, mode: hit._drag || "whole", startX: p.x, startY: p.y, snap: JSON.parse(JSON.stringify(hit)) };
-      updateSelUI(true);  // auto-open style panel on mobile
+      updateSelUI(true);
     } else {
+      // 没命中标注 → 检查是否点到了某张图，进入图片拖动模式
+      const imgHit = findImageIndexForPoint(p.x, p.y);
       state.selectedId = null;
-      pointer = null;
+      if (imgHit !== -1) {
+        state.selectedImageIdx = imgHit;
+        const o = state.images[imgHit];
+        pointer = { imgIdx: imgHit, startX: p.x, startY: p.y,
+                    snapDraw: { ...o.draw } };
+      } else {
+        state.selectedImageIdx = null;
+        pointer = null;
+      }
       updateSelUI(false);
     }
     render();
   });
 
+  function findImageIndexForPoint(x, y) {
+    for (let i = 0; i < state.images.length; i++) {
+      const o = state.images[i];
+      if (!o || !o.img) continue;
+      const cell = cellRect(i);
+      if (x >= cell.x && x <= cell.x + cell.w && y >= cell.y && y <= cell.y + cell.h) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
   frame.addEventListener("pointermove", (e) => {
     if (!pointer) return;
     const p = getCanvasPoint(e);
+    // image-drag mode
+    if (pointer.imgIdx !== undefined) {
+      const o = state.images[pointer.imgIdx];
+      if (!o) return;
+      const dx = p.x - pointer.startX, dy = p.y - pointer.startY;
+      o.draw.x = pointer.snapDraw.x + dx;
+      o.draw.y = pointer.snapDraw.y + dy;
+      o._userPlaced = true;
+      render();
+      return;
+    }
     const a = state.annotations.find(x => x.id === pointer.id);
     if (!a) return;
     const dx = p.x - pointer.startX, dy = p.y - pointer.startY;
@@ -738,6 +797,38 @@
 
   frame.addEventListener("pointerup", () => { pointer = null; });
   frame.addEventListener("pointercancel", () => { pointer = null; });
+
+  // 滚轮缩放：缩放当前选中的图片（围绕光标点）
+  frame.addEventListener("wheel", (e) => {
+    if (state.selectedImageIdx === null || state.selectedImageIdx === undefined) return;
+    const o = state.images[state.selectedImageIdx];
+    if (!o) return;
+    e.preventDefault();
+    const p = getCanvasPoint(e);
+    const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
+    // scale around pointer
+    o.draw.x = p.x - (p.x - o.draw.x) * factor;
+    o.draw.y = p.y - (p.y - o.draw.y) * factor;
+    o.draw.w *= factor;
+    o.draw.h *= factor;
+    o._userPlaced = true;
+    render();
+  }, { passive: false });
+
+  // 双击图片空白区 → 重置为填充格子
+  frame.addEventListener("dblclick", (e) => {
+    const p = getCanvasPoint(e);
+    const hit = hitTest(p.x, p.y);
+    if (hit) return; // handled below
+    const idx = findImageIndexForPoint(p.x, p.y);
+    if (idx !== -1) {
+      const o = state.images[idx];
+      fitImageInCell(o, cellRect(idx));
+      o._userPlaced = false;
+      flash("图片已重置到格子大小");
+      render();
+    }
+  });
 
   frame.addEventListener("dblclick", (e) => {
     const p = getCanvasPoint(e);
@@ -1127,6 +1218,21 @@
     if (typeof helpDialog.showModal === "function") helpDialog.showModal();
     else alert("请参考页面右侧说明。");
   });
+
+  // ---------- Intro overlay ----------
+  const introOverlay = document.getElementById("introOverlay");
+  const introEnter   = document.getElementById("introEnter");
+  const INTRO_KEY    = "pfs-intro-seen-v1";
+  if (introOverlay) {
+    // Show every time for now (remove localStorage check if you want once-only)
+    // If you want "show once", uncomment:
+    // if (localStorage.getItem(INTRO_KEY)) introOverlay.style.display = "none";
+    introEnter && introEnter.addEventListener("click", () => {
+      introOverlay.classList.add("closing");
+      setTimeout(() => { introOverlay.style.display = "none"; }, 320);
+      try { localStorage.setItem(INTRO_KEY, "1"); } catch(e) {}
+    });
+  }
 
   // ---------- Init ----------
   setRatio(4, 3);
