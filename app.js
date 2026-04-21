@@ -1,6 +1,6 @@
 /* =========================================================
-   Paper Figure Studio — Canvas editor
-   Pure front-end, no dependencies.
+   Paper Figure Studio — Canvas editor (v2)
+   多图拼接 + 期刊风格预设 + 移动端联动
    ========================================================= */
 
 (() => {
@@ -8,6 +8,7 @@
 
   // ---------- DOM ----------
   const $  = (s) => document.querySelector(s);
+  const $$ = (s) => Array.from(document.querySelectorAll(s));
   const canvas = $("#canvas");
   const ctx = canvas.getContext("2d");
   const frame = $("#figureFrame");
@@ -20,25 +21,144 @@
   const citationLine = $("#citationLine");
   const panel = $("#panel");
   const panelHandle = $("#panelHandle");
+  const panelCloseFab = $("#panelCloseFab");
   const btnDelete = $("#btnDelete");
   const btnClear = $("#btnClear");
   const btnExport = $("#btnExport");
   const btnHelp = $("#btnHelp");
   const helpDialog = $("#helpDialog");
+  const cellHint = $("#cellHint");
+  const autoLabel = $("#autoLabel");
+
+  // ---------- Journal presets ----------
+  const JOURNALS = {
+    default: {
+      name: "Journal of Daily Observations",
+      meta: "ISSN 0000-0000 · VOL. 01",
+      family: "serif",           // default text family for new annotations
+      labelBold: true,
+      labelColor: "#ffffff",
+      accent: "#b02029",         // zoom / rect red
+      captionFont: "serif",
+    },
+    nature: {
+      name: "Nature — Research Letters",
+      meta: "doi:10.1038/daily-0000 · 2026",
+      family: "serif",
+      labelBold: true,
+      labelColor: "#ffffff",
+      accent: "#006699",
+      captionFont: "serif",
+    },
+    science: {
+      name: "Science — Reports",
+      meta: "DOI: 10.1126/science.daily · 2026",
+      family: "times",
+      labelBold: true,
+      labelColor: "#ffffff",
+      accent: "#b30000",
+      captionFont: "times",
+    },
+    cell: {
+      name: "Cell — Article",
+      meta: "Volume 186 · 2026 · Elsevier",
+      family: "sourcesans",
+      labelBold: true,
+      labelColor: "#ffffff",
+      accent: "#0b6e4f",
+      captionFont: "sourcesans",
+    },
+    ieee: {
+      name: "IEEE Transactions",
+      meta: "10.1109/TDAILY.2026.0000",
+      family: "times",
+      labelBold: true,
+      labelColor: "#ffffff",
+      accent: "#00629b",
+      captionFont: "times",
+    },
+    elsevier: {
+      name: "Elsevier — Daily Science",
+      meta: "https://doi.org/10.1016/j.daily.2026",
+      family: "serif",
+      labelBold: false,
+      labelColor: "#ffffff",
+      accent: "#eb6500",
+      captionFont: "serif",
+    },
+  };
 
   // ---------- State ----------
   const state = {
-    img: null,           // HTMLImageElement
-    imgDraw: null,       // {x,y,w,h} on canvas
+    images: [],          // [{img: HTMLImageElement, draw:{x,y,w,h}}]
+    layout: { cols: 1, rows: 1 },   // grid layout
+    cellGap: 12,                    // px on canvas coords
     annotations: [],
     selectedId: null,
     nextId: 1,
     ratio: [4, 3],
     filters: { grayscale: false, photocopy: false, heatmap: false },
-    panelLabelSeq: 0,    // 0 -> 'a', 1 -> 'b'...
+    panelLabelSeq: 0,
+    journal: "default",
   };
 
-  const BASE_LONG = 1200; // long edge of canvas
+  const BASE_LONG = 1200;
+
+  function currentJournal() { return JOURNALS[state.journal] || JOURNALS.default; }
+
+  function applyJournal(name) {
+    if (!JOURNALS[name]) return;
+    state.journal = name;
+    const j = JOURNALS[name];
+    document.body.setAttribute("data-journal", name);
+    $("#journalName").textContent = j.name;
+    $("#journalMeta").textContent = j.meta;
+    $$(".j-btn").forEach(b => b.classList.toggle("on", b.dataset.journal === name));
+    // update existing annotations: only change default-styled text families, not user-customized
+    // simple heuristic: if text's family matches any preset default, bump it
+    const allDefaults = Object.values(JOURNALS).map(x => x.family);
+    for (const a of state.annotations) {
+      if (TEXT_TYPES.has(a.type) && allDefaults.includes(a.family)) {
+        a.family = j.family;
+      }
+      if (a.type === "zoom" || a.type === "rect") {
+        if (!a._userColor) a.color = j.accent;
+      }
+    }
+    render();
+    updateCaptionPreview();
+  }
+
+  // ---------- Layout / grid ----------
+  function setLayout(key) {
+    const [cols, rows] = key.split("x").map(Number);
+    state.layout = { cols, rows };
+    $$(".l-btn").forEach(b => b.classList.toggle("on", b.dataset.layout === key));
+    const n = cols * rows;
+    cellHint.textContent = n === 1
+      ? "当前布局：1 图（单面板）"
+      : `当前布局：${cols}×${rows} = ${n} 图`;
+    // trim images to fit
+    state.images = state.images.slice(0, n);
+    fitAllImages();
+    render();
+  }
+
+  function cellRect(i) {
+    const { cols, rows } = state.layout;
+    const col = i % cols, row = Math.floor(i / cols);
+    const gap = state.cellGap;
+    const totalGapW = gap * (cols + 1);
+    const totalGapH = gap * (rows + 1);
+    const cw = (canvas.width - totalGapW) / cols;
+    const ch = (canvas.height - totalGapH) / rows;
+    return {
+      x: gap + col * (cw + gap),
+      y: gap + row * (ch + gap),
+      w: cw,
+      h: ch,
+    };
+  }
 
   function setRatio(rw, rh) {
     state.ratio = [rw, rh];
@@ -50,40 +170,72 @@
       canvas.width = Math.round(BASE_LONG * rw / rh);
     }
     frame.style.aspectRatio = `${rw} / ${rh}`;
-    fitImage();
+    fitAllImages();
     render();
   }
 
-  function fitImage() {
-    if (!state.img) return;
-    const { naturalWidth: iw, naturalHeight: ih } = state.img;
-    const cw = canvas.width, ch = canvas.height;
-    const s = Math.min(cw / iw, ch / ih);
+  function fitImageInCell(imgObj, cell) {
+    const { img } = imgObj;
+    const { naturalWidth: iw, naturalHeight: ih } = img;
+    const s = Math.min(cell.w / iw, cell.h / ih);
     const w = iw * s, h = ih * s;
-    state.imgDraw = { x: (cw - w) / 2, y: (ch - h) / 2, w, h };
+    imgObj.draw = {
+      x: cell.x + (cell.w - w) / 2,
+      y: cell.y + (cell.h - h) / 2,
+      w, h
+    };
+  }
+
+  function fitAllImages() {
+    state.images.forEach((o, i) => {
+      const c = cellRect(i);
+      if (o.img) fitImageInCell(o, c);
+    });
   }
 
   // ---------- Image loading ----------
-  function loadImageFromFile(file) {
-    if (!file || !file.type.startsWith("image/")) return;
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      state.img = img;
-      fitImage();
-      emptyHint.style.display = "none";
-      render();
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
+  function loadImageFromFile(file, cellIndex) {
+    if (!file || !file.type.startsWith("image/")) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const n = state.layout.cols * state.layout.rows;
+        const idx = (cellIndex !== undefined) ? cellIndex
+                  : (state.images.length < n ? state.images.length : 0);
+        const obj = { img, draw: null };
+        const cell = cellRect(idx);
+        fitImageInCell(obj, cell);
+        state.images[idx] = obj;
+        // trim
+        state.images = state.images.slice(0, n);
+        emptyHint.style.display = "none";
+        maybeAddPanelLabels();
+        render();
+        URL.revokeObjectURL(url);
+        resolve(obj);
+      };
+      img.src = url;
+    });
+  }
+
+  async function loadFiles(files) {
+    const n = state.layout.cols * state.layout.rows;
+    const arr = Array.from(files).slice(0, n);
+    // start at current images length
+    let start = state.images.length < n ? state.images.length : 0;
+    if (arr.length >= n) start = 0;
+    for (let i = 0; i < arr.length; i++) {
+      await loadImageFromFile(arr[i], start + i);
+    }
   }
 
   fileInput.addEventListener("change", (e) => {
-    const f = e.target.files && e.target.files[0];
-    if (f) loadImageFromFile(f);
+    const fs = e.target.files;
+    if (fs && fs.length) loadFiles(fs);
+    e.target.value = ""; // allow re-upload same file
   });
 
-  // drag & drop onto frame
   ["dragenter", "dragover"].forEach(ev => frame.addEventListener(ev, (e) => {
     e.preventDefault(); frame.classList.add("dragover");
   }));
@@ -91,34 +243,65 @@
     e.preventDefault(); frame.classList.remove("dragover");
   }));
   frame.addEventListener("drop", (e) => {
-    const f = e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) loadImageFromFile(f);
+    const fs = e.dataTransfer.files;
+    if (fs && fs.length) loadFiles(fs);
   });
 
-  // paste
   window.addEventListener("paste", (e) => {
     const items = e.clipboardData && e.clipboardData.items;
     if (!items) return;
     for (const it of items) {
       if (it.type && it.type.startsWith("image/")) {
         const f = it.getAsFile();
-        if (f) loadImageFromFile(f);
+        if (f) loadFiles([f]);
         break;
       }
     }
   });
 
+  // auto add panel labels when loading into multi-panel layout
+  function maybeAddPanelLabels() {
+    if (!autoLabel.checked) return;
+    const n = state.layout.cols * state.layout.rows;
+    if (n < 2) return;
+    // ensure each cell has exactly one auto label
+    for (let i = 0; i < state.images.length; i++) {
+      if (!state.images[i]) continue;
+      const cell = cellRect(i);
+      const tag = `(${String.fromCharCode(97 + i)})`;
+      const exists = state.annotations.some(a => a._auto === i && a.type === "label");
+      if (!exists) {
+        const j = currentJournal();
+        state.annotations.push({
+          id: state.nextId++,
+          type: "label",
+          _auto: i,
+          x: cell.x + 14,
+          y: cell.y + 12,
+          text: tag,
+          fontSize: 40,
+          family: j.family,
+          bold: j.labelBold,
+          italic: false,
+          color: j.labelColor,
+          stroke: "#000000",
+        });
+      }
+    }
+  }
+
   // ---------- Annotation factory ----------
   function addAnnotation(type) {
     const cx = canvas.width / 2, cy = canvas.height / 2;
     const id = state.nextId++;
+    const j = currentJournal();
     let obj;
     switch (type) {
       case "label": {
         const letter = String.fromCharCode(97 + state.panelLabelSeq++);
         obj = { id, type: "label", x: 30, y: 50, text: `(${letter})`,
-                fontSize: 44, family: "serif", bold: true, italic: false,
-                color: "#ffffff", stroke: "#000000" };
+                fontSize: 44, family: j.family, bold: j.labelBold, italic: false,
+                color: j.labelColor, stroke: "#000000" };
         break;
       }
       case "arrow":
@@ -126,29 +309,29 @@
         break;
       case "text":
         obj = { id, type: "text", x: cx, y: cy, text: "双击编辑",
-                fontSize: 26, family: "serif", bold: false, italic: false,
+                fontSize: 26, family: j.family, bold: false, italic: false,
                 color: "#ffffff", stroke: "#000000" };
         break;
       case "zoom":
         obj = { id, type: "zoom",
                 srcX: cx - 80, srcY: cy - 60, srcW: 160, srcH: 120,
                 dstX: canvas.width - 340, dstY: 40, dstW: 300, dstH: 225,
-                scale: 10, color: "#d12020" };
+                scale: 10, color: j.accent };
         break;
       case "scale":
         obj = { id, type: "scale", x: canvas.width - 220, y: canvas.height - 60,
                 length: 160, text: "100 μm",
-                fontSize: 20, family: "serif", bold: false, italic: false,
+                fontSize: 20, family: j.family, bold: false, italic: false,
                 color: "#ffffff", stroke: "#000000" };
         break;
       case "rect":
-        obj = { id, type: "rect", x: cx - 120, y: cy - 90, w: 240, h: 180, color: "#d12020", dash: [8, 6], lineWidth: 3 };
+        obj = { id, type: "rect", x: cx - 120, y: cy - 90, w: 240, h: 180, color: j.accent, dash: [8, 6], lineWidth: 3 };
         break;
       default: return;
     }
     state.annotations.push(obj);
     state.selectedId = id;
-    updateSelUI();
+    updateSelUI(true);
     render();
   }
 
@@ -170,7 +353,6 @@
   }
 
   function applyHeatmap(x, y, w, h) {
-    // sample pixel data inside image area and remap to heatmap LUT
     try {
       const img = ctx.getImageData(x, y, w, h);
       const d = img.data;
@@ -180,10 +362,9 @@
         d[i] = c[0]; d[i+1] = c[1]; d[i+2] = c[2];
       }
       ctx.putImageData(img, x, y);
-    } catch (e) { /* tainted canvas — ignore */ }
+    } catch (e) { /* tainted */ }
   }
   function heatColor(t) {
-    // simple viridis-ish: dark purple -> red -> yellow
     const r = Math.round(255 * Math.min(1, Math.max(0, 1.5 * t - 0.1)));
     const g = Math.round(255 * Math.min(1, Math.max(0, 1.5 * t - 0.4)));
     const b = Math.round(255 * Math.min(1, Math.max(0, 0.6 - 1.2 * Math.abs(t - 0.25))));
@@ -200,22 +381,53 @@
     ctx.fillStyle = "#0a0a0a";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // image with CSS-like filter
-    if (state.img && state.imgDraw) {
-      const fs = buildFilterString();
+    // draw empty cell outlines when multi-panel has empty slots
+    const n = state.layout.cols * state.layout.rows;
+    if (n > 1) {
+      for (let i = 0; i < n; i++) {
+        if (state.images[i]) continue;
+        const c = cellRect(i);
+        ctx.save();
+        ctx.fillStyle = "#1a1a1a";
+        ctx.fillRect(c.x, c.y, c.w, c.h);
+        ctx.strokeStyle = "#3a3a3a";
+        ctx.setLineDash([6, 6]);
+        ctx.lineWidth = 1;
+        ctx.strokeRect(c.x + 4, c.y + 4, c.w - 8, c.h - 8);
+        ctx.fillStyle = "#666";
+        ctx.setLineDash([]);
+        ctx.font = '500 14px "Inter", sans-serif';
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(`+ 第 ${i+1} 张`, c.x + c.w/2, c.y + c.h/2);
+        ctx.restore();
+      }
+    }
+
+    // images per cell
+    const fs = buildFilterString();
+    for (let i = 0; i < state.images.length; i++) {
+      const o = state.images[i];
+      if (!o || !o.img) continue;
+      const cell = cellRect(i);
+      // clip to cell
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(cell.x, cell.y, cell.w, cell.h);
+      ctx.clip();
       ctx.filter = fs || "none";
-      ctx.drawImage(state.img, state.imgDraw.x, state.imgDraw.y, state.imgDraw.w, state.imgDraw.h);
+      ctx.drawImage(o.img, o.draw.x, o.draw.y, o.draw.w, o.draw.h);
       ctx.filter = "none";
+      ctx.restore();
       if (state.filters.heatmap) {
-        applyHeatmap(Math.floor(state.imgDraw.x), Math.floor(state.imgDraw.y),
-                     Math.floor(state.imgDraw.w), Math.floor(state.imgDraw.h));
+        applyHeatmap(Math.floor(cell.x), Math.floor(cell.y),
+                     Math.floor(cell.w), Math.floor(cell.h));
       }
     }
 
     // annotations
     for (const a of state.annotations) drawAnnotation(a);
 
-    // selection
     const sel = currentSel();
     if (sel) drawSelection(sel);
 
@@ -234,10 +446,12 @@
   }
 
   const FAMILY_MAP = {
-    serif: '"EB Garamond", "Noto Serif SC", Georgia, serif',
-    sans: '"Inter", "Noto Serif SC", system-ui, sans-serif',
-    mono: '"JetBrains Mono", ui-monospace, monospace',
-    cnserif: '"Noto Serif SC", "EB Garamond", serif'
+    serif:       '"EB Garamond", "Noto Serif SC", Georgia, serif',
+    sans:        '"Inter", "Noto Serif SC", system-ui, sans-serif',
+    mono:        '"JetBrains Mono", ui-monospace, monospace',
+    cnserif:     '"Noto Serif SC", "EB Garamond", serif',
+    times:       '"Times New Roman", Times, "Noto Serif SC", serif',
+    sourcesans:  '"Source Sans 3", "Inter", "Noto Serif SC", sans-serif',
   };
   function fontStringFor(a, fallbackWeight) {
     const weight = a.bold ? 700 : (fallbackWeight || 500);
@@ -317,7 +531,6 @@
     ctx.fillStyle = a.color || "#fff";
     ctx.strokeStyle = "rgba(0,0,0,0.6)";
     ctx.lineWidth = 2;
-    // white bar with thin black border
     ctx.fillRect(a.x, a.y, a.length, barH);
     ctx.strokeRect(a.x, a.y, a.length, barH);
     ctx.font = fontStringFor(a, 500);
@@ -332,8 +545,23 @@
     a._bb = { x: a.x, y: a.y - 26, w: a.length, h: barH + 26 };
   }
 
+  // find the image cell a given canvas-coord point falls in
+  function findImageForPoint(x, y) {
+    for (let i = 0; i < state.images.length; i++) {
+      const o = state.images[i];
+      if (!o || !o.img) continue;
+      const cell = cellRect(i);
+      if (x >= cell.x && x <= cell.x + cell.w && y >= cell.y && y <= cell.y + cell.h) {
+        return { obj: o, cell };
+      }
+    }
+    // fallback: first image
+    const first = state.images.find(o => o && o.img);
+    if (first) return { obj: first, cell: cellRect(state.images.indexOf(first)) };
+    return null;
+  }
+
   function drawZoom(a) {
-    // source dashed rect
     ctx.save();
     ctx.strokeStyle = a.color || "#d12020";
     ctx.lineWidth = 3;
@@ -341,7 +569,6 @@
     ctx.strokeRect(a.srcX, a.srcY, a.srcW, a.srcH);
     ctx.setLineDash([]);
 
-    // connectors from src corners to dst corners
     ctx.beginPath();
     ctx.moveTo(a.srcX + a.srcW, a.srcY); ctx.lineTo(a.dstX, a.dstY);
     ctx.moveTo(a.srcX + a.srcW, a.srcY + a.srcH); ctx.lineTo(a.dstX, a.dstY + a.dstH);
@@ -349,34 +576,29 @@
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // dst box: magnified crop
-    if (state.img && state.imgDraw) {
-      const id = state.imgDraw;
-      // map src rect (canvas coords) back to image coords
-      const sx = (a.srcX - id.x) / id.w * state.img.naturalWidth;
-      const sy = (a.srcY - id.y) / id.h * state.img.naturalHeight;
-      const sw = a.srcW / id.w * state.img.naturalWidth;
-      const sh = a.srcH / id.h * state.img.naturalHeight;
-      // clip to image bounds
-      const clampedSX = Math.max(0, sx), clampedSY = Math.max(0, sy);
-      const clampedSW = Math.min(state.img.naturalWidth - clampedSX, sw);
-      const clampedSH = Math.min(state.img.naturalHeight - clampedSY, sh);
-      if (clampedSW > 0 && clampedSH > 0) {
+    const hit = findImageForPoint(a.srcX + a.srcW/2, a.srcY + a.srcH/2);
+    if (hit) {
+      const { obj, cell } = hit;
+      const sxPx = (a.srcX - obj.draw.x) / obj.draw.w * obj.img.naturalWidth;
+      const syPx = (a.srcY - obj.draw.y) / obj.draw.h * obj.img.naturalHeight;
+      const swPx = a.srcW / obj.draw.w * obj.img.naturalWidth;
+      const shPx = a.srcH / obj.draw.h * obj.img.naturalHeight;
+      const cSX = Math.max(0, sxPx), cSY = Math.max(0, syPx);
+      const cSW = Math.min(obj.img.naturalWidth - cSX, swPx);
+      const cSH = Math.min(obj.img.naturalHeight - cSY, shPx);
+      if (cSW > 0 && cSH > 0) {
         ctx.filter = buildFilterString() || "none";
-        ctx.drawImage(state.img, clampedSX, clampedSY, clampedSW, clampedSH,
-                      a.dstX, a.dstY, a.dstW, a.dstH);
+        ctx.drawImage(obj.img, cSX, cSY, cSW, cSH, a.dstX, a.dstY, a.dstW, a.dstH);
         ctx.filter = "none";
         if (state.filters.heatmap) {
           applyHeatmap(Math.floor(a.dstX), Math.floor(a.dstY), Math.floor(a.dstW), Math.floor(a.dstH));
         }
       }
     }
-    // outer border
     ctx.strokeStyle = a.color || "#d12020";
     ctx.lineWidth = 3;
     ctx.strokeRect(a.dstX, a.dstY, a.dstW, a.dstH);
 
-    // scale badge
     const badge = `×${a.scale}`;
     ctx.font = '600 16px "Inter", sans-serif';
     const bw = ctx.measureText(badge).width + 16;
@@ -410,7 +632,6 @@
       const a = state.annotations[i];
       if (!a._bb) continue;
       const bb = a._bb;
-      // for zoom allow hitting both src and dst sub-boxes
       if (a.type === "zoom") {
         if (inside(x, y, a.srcX, a.srcY, a.srcW, a.srcH)) { a._drag = "src"; return a; }
         if (inside(x, y, a.dstX, a.dstY, a.dstW, a.dstH)) { a._drag = "dst"; return a; }
@@ -454,11 +675,12 @@
     if (hit) {
       state.selectedId = hit.id;
       pointer = { id: hit.id, mode: hit._drag || "whole", startX: p.x, startY: p.y, snap: JSON.parse(JSON.stringify(hit)) };
+      updateSelUI(true);  // auto-open style panel on mobile
     } else {
       state.selectedId = null;
       pointer = null;
+      updateSelUI(false);
     }
-    updateSelUI();
     render();
   });
 
@@ -492,7 +714,6 @@
   frame.addEventListener("pointerup", () => { pointer = null; });
   frame.addEventListener("pointercancel", () => { pointer = null; });
 
-  // double-click to edit text
   frame.addEventListener("dblclick", (e) => {
     const p = getCanvasPoint(e);
     const a = hitTest(p.x, p.y);
@@ -517,14 +738,11 @@
   function deleteSelected() {
     state.annotations = state.annotations.filter(a => a.id !== state.selectedId);
     state.selectedId = null;
-    updateSelUI();
+    updateSelUI(false);
     render();
   }
-  function updateSelUI() {
-    btnDelete.disabled = !state.selectedId;
-    syncStyleControls();
-  }
 
+  // ---------- Style panel + mobile auto-expand ----------
   const styleTool   = $("#styleTool");
   const styleSize   = $("#styleSize");
   const styleSizeVal= $("#styleSizeVal");
@@ -536,6 +754,24 @@
   const styleHint   = $("#styleHint");
 
   const TEXT_TYPES = new Set(["label", "text", "scale"]);
+  const isMobile = () => window.matchMedia("(max-width: 900px)").matches;
+
+  function updateSelUI(shouldExpandMobile) {
+    btnDelete.disabled = !state.selectedId;
+    syncStyleControls();
+    if (shouldExpandMobile && state.selectedId && isMobile()) {
+      const a = currentSel();
+      if (a && TEXT_TYPES.has(a.type)) {
+        openPanel();
+        // scroll to style tool
+        setTimeout(() => {
+          styleTool.scrollIntoView({ behavior: "smooth", block: "start" });
+          styleTool.classList.add("flash");
+          setTimeout(() => styleTool.classList.remove("flash"), 1200);
+        }, 200);
+      }
+    }
+  }
 
   function syncStyleControls() {
     const a = currentSel();
@@ -575,7 +811,7 @@
     state.annotations = [];
     state.selectedId = null;
     state.panelLabelSeq = 0;
-    updateSelUI();
+    updateSelUI(false);
     render();
   });
 
@@ -631,7 +867,6 @@
     const t = $("#captionTopic").value;
     const lang = Math.random() < 0.5 ? "cn" : "en";
     captionInput.value = window.pickCaption(t, lang);
-    // 随机图号
     const figN = Math.floor(Math.random() * 5) + 1;
     figNumberInput.value = lang === "cn" ? `图 ${figN}` : `Figure ${figN}`;
     updateCaptionPreview();
@@ -684,27 +919,32 @@
     });
   });
 
+  // ---------- Journal + layout buttons ----------
+  $$(".j-btn").forEach(b => b.addEventListener("click", () => applyJournal(b.dataset.journal)));
+  $$(".l-btn").forEach(b => b.addEventListener("click", () => setLayout(b.dataset.layout)));
+
   // ---------- Export ----------
   btnExport.addEventListener("click", () => {
-    // compose final PNG with caption block below
     state.selectedId = null;
     render();
+
+    const j = currentJournal();
+    const capFam = FAMILY_MAP[j.captionFont] || FAMILY_MAP.serif;
 
     const padH = 32, padV = 28;
     const capFont = 22;
     const citFont = 16;
     const lineGap = 10;
 
-    // measure caption text
     const tmp = document.createElement("canvas");
     const tctx = tmp.getContext("2d");
-    tctx.font = `500 ${capFont}px "EB Garamond", serif`;
+    tctx.font = `500 ${capFont}px ${capFam}`;
     const fig = figNumberInput.value.trim() || "Figure 1";
     const capBody = captionInput.value.trim();
     const fullCaption = `${fig}. ${capBody}`;
     const capLines = wrapText(tctx, fullCaption, canvas.width - padH * 2, capFont);
 
-    tctx.font = `italic ${citFont}px "EB Garamond", serif`;
+    tctx.font = `italic ${citFont}px ${capFam}`;
     const citText = plainCitation();
     const citLines = citText ? wrapText(tctx, citText, canvas.width - padH * 2, citFont) : [];
 
@@ -720,20 +960,17 @@
     octx.fillRect(0, 0, out.width, out.height);
     octx.drawImage(canvas, 0, 0);
 
-    // caption
     octx.fillStyle = "#0c0c0c";
     octx.textBaseline = "top";
-    octx.font = `500 ${capFont}px "EB Garamond", serif`;
+    octx.font = `500 ${capFont}px ${capFam}`;
     let y = canvas.height + padV;
-    // bold fig number inline
-    // drew as one wrapped block; bold not rendered — simplify: wrap the whole line plain, then overlay bold prefix
     capLines.forEach((ln, i) => {
       if (i === 0) {
         const prefix = fig + ". ";
-        octx.font = `700 ${capFont}px "EB Garamond", serif`;
+        octx.font = `700 ${capFont}px ${capFam}`;
         octx.fillText(prefix, padH, y);
         const w = octx.measureText(prefix).width;
-        octx.font = `500 ${capFont}px "EB Garamond", serif`;
+        octx.font = `500 ${capFont}px ${capFam}`;
         octx.fillText(ln.slice(prefix.length), padH + w, y);
       } else {
         octx.fillText(ln, padH, y);
@@ -742,14 +979,14 @@
     });
     if (citLines.length) {
       y += lineGap;
-      octx.font = `italic ${citFont}px "EB Garamond", serif`;
+      octx.font = `italic ${citFont}px ${capFam}`;
       octx.fillStyle = "#555";
       citLines.forEach(ln => { octx.fillText(ln, padH, y); y += citFont * 1.4; });
     }
 
     out.toBlob((blob) => {
       const a = document.createElement("a");
-      a.download = `paper-figure-${Date.now()}.png`;
+      a.download = `paper-figure-${state.journal}-${Date.now()}.png`;
       a.href = URL.createObjectURL(blob);
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 500);
@@ -757,10 +994,10 @@
   });
 
   function wrapText(c, text, maxW, fontSize) {
-    const words = text.split("");
+    const chars = text.split("");
     const lines = [];
     let cur = "";
-    for (const ch of words) {
+    for (const ch of chars) {
       const test = cur + ch;
       if (c.measureText(test).width > maxW && cur.length > 0) {
         lines.push(cur);
@@ -791,9 +1028,12 @@
   }
 
   // ---------- Panel (mobile drawer) ----------
-  panelHandle.addEventListener("click", () => {
-    panel.classList.toggle("open");
-  });
+  function openPanel()  { panel.classList.add("open");  panelCloseFab.classList.add("show"); }
+  function closePanel() { panel.classList.remove("open"); panelCloseFab.classList.remove("show"); }
+  function togglePanel(){ panel.classList.contains("open") ? closePanel() : openPanel(); }
+
+  panelHandle.addEventListener("click", togglePanel);
+  panelCloseFab.addEventListener("click", closePanel);
 
   // ---------- Help ----------
   btnHelp.addEventListener("click", () => {
@@ -803,6 +1043,8 @@
 
   // ---------- Init ----------
   setRatio(4, 3);
+  applyJournal("default");
+  setLayout("1x1");
   updateCaptionPreview();
   updateCitationPreview();
   render();

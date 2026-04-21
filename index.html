@@ -4,22 +4,22 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Paper Figure Studio — 把照片变成论文配图</title>
-  <meta name="description" content="纯本地运行的伪论文配图编辑器。添加面板标签、箭头、放大框、比例尺与学术图注，一键导出。" />
+  <meta name="description" content="纯本地运行的伪论文配图编辑器。支持 Nature/Science/Cell/IEEE 期刊排版、多图拼接、学术标注与图注，一键导出。" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;500;600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body data-journal="default">
 
 <header class="masthead">
   <div class="masthead__row">
     <div class="masthead__left">
       <span class="journal-mark">◼</span>
-      <span class="journal-name">Journal of Daily Observations</span>
+      <span class="journal-name" id="journalName">Journal of Daily Observations</span>
     </div>
     <div class="masthead__right">
-      <span>ISSN 0000-0000 · VOL. 01</span>
+      <span id="journalMeta">ISSN 0000-0000 · VOL. 01</span>
     </div>
   </div>
   <div class="masthead__rule"></div>
@@ -42,7 +42,7 @@
         <div class="empty-hint" id="emptyHint">
           <div>
             <div class="empty-hint__big">↑</div>
-            <p>点击右侧 <b>上传照片</b> 或把图片拖到这里</p>
+            <p>点击右侧 <b>上传照片</b> 或把图片拖到这里<br/><span class="tiny-inline">支持多图：先选布局再依次上传</span></p>
           </div>
         </div>
       </div>
@@ -77,18 +77,62 @@
 
     <div class="panel__scroll">
 
-      <!-- 1. UPLOAD -->
+      <!-- 0. JOURNAL STYLE -->
+      <fieldset class="tool tool--journal">
+        <legend>00 · 期刊风格</legend>
+        <div class="journal-grid" id="journalGrid">
+          <button type="button" data-journal="default" class="j-btn on">
+            <span class="j-name">Default</span>
+            <span class="j-sub">Garamond · 自由</span>
+          </button>
+          <button type="button" data-journal="nature" class="j-btn">
+            <span class="j-name">Nature</span>
+            <span class="j-sub">Minion · 粗面板</span>
+          </button>
+          <button type="button" data-journal="science" class="j-btn">
+            <span class="j-name">Science</span>
+            <span class="j-sub">Times · 经典</span>
+          </button>
+          <button type="button" data-journal="cell" class="j-btn">
+            <span class="j-name">Cell</span>
+            <span class="j-sub">Sans · 现代</span>
+          </button>
+          <button type="button" data-journal="ieee" class="j-btn">
+            <span class="j-name">IEEE</span>
+            <span class="j-sub">Times · 工程</span>
+          </button>
+          <button type="button" data-journal="elsevier" class="j-btn">
+            <span class="j-name">Elsevier</span>
+            <span class="j-sub">Serif · 通用</span>
+          </button>
+        </div>
+        <p class="hint">切换会自动调整标题栏、字体、标注颜色与图注字体。</p>
+      </fieldset>
+
+      <!-- 1. UPLOAD + LAYOUT -->
       <fieldset class="tool">
-        <legend>01 · Source</legend>
+        <legend>01 · Source & Layout</legend>
+        <div class="layout-grid" id="layoutGrid">
+          <button type="button" data-layout="1x1" class="l-btn on" title="单图">▢</button>
+          <button type="button" data-layout="2x1" class="l-btn" title="横向 2 图">▢▢</button>
+          <button type="button" data-layout="1x2" class="l-btn" title="竖向 2 图"><span class="l-stack">▢<br>▢</span></button>
+          <button type="button" data-layout="2x2" class="l-btn" title="2×2 四图"><span class="l-stack">▢▢<br>▢▢</span></button>
+          <button type="button" data-layout="3x1" class="l-btn" title="横向 3 图">▢▢▢</button>
+          <button type="button" data-layout="1x3" class="l-btn" title="竖向 3 图"><span class="l-stack">▢<br>▢<br>▢</span></button>
+        </div>
         <label class="upload" for="fileInput">
-          <input type="file" id="fileInput" accept="image/*" hidden />
-          <span>选择图片 / 拖拽 / 粘贴</span>
+          <input type="file" id="fileInput" accept="image/*" multiple hidden />
+          <span id="uploadHint">选择图片 / 拖拽 / 粘贴（多图按布局依次填入）</span>
         </label>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="autoLabel" checked /> 自动 (a)(b)(c) 标签</label>
+        </div>
         <div class="row">
           <label class="check"><input type="checkbox" id="fxGrayscale" /> 黑白</label>
           <label class="check"><input type="checkbox" id="fxPhotocopy" /> 影印版</label>
           <label class="check"><input type="checkbox" id="fxHeatmap" /> 伪热力图</label>
         </div>
+        <p class="hint" id="cellHint">当前布局：1 图（单面板）</p>
       </fieldset>
 
       <!-- 2. ANNOTATIONS -->
@@ -102,7 +146,7 @@
           <button type="button" data-add="scale">+ 比例尺</button>
           <button type="button" data-add="rect">+ 框选区</button>
         </div>
-        <p class="hint">点击画布上的对象可拖动；双击文字可编辑。</p>
+        <p class="hint">点击画布对象可拖动 / 选中；双击文字可编辑。选中后此处的 <b>Aa</b> 面板会自动展开。</p>
       </fieldset>
 
       <!-- 0. LUCKY -->
@@ -161,6 +205,8 @@
           <option value="sans">Sans — Inter / 无衬线</option>
           <option value="mono">Mono — JetBrains Mono / 等宽</option>
           <option value="cnserif">Serif CN — 思源宋体</option>
+          <option value="times">Times — 期刊经典</option>
+          <option value="sourcesans">Source Sans — Cell 风格</option>
         </select>
         <div class="row">
           <label class="check"><input type="checkbox" id="styleBold" /> <b>B</b> 粗体</label>
@@ -195,6 +241,9 @@
     </div>
   </aside>
 
+  <!-- Mobile: floating collapse button while panel open -->
+  <button class="panel__close-fab" id="panelCloseFab" type="button" aria-label="收起面板">收起 ↓ 看图</button>
+
 </main>
 
 <!-- Help modal -->
@@ -202,13 +251,13 @@
   <article>
     <h2>Paper Figure Studio — 使用说明</h2>
     <ol>
-      <li><b>上传</b>：点击或拖拽图片到画布。</li>
-      <li><b>加标注</b>：右侧 <em>Annotations</em> 选择要加的元素（面板标签、箭头、放大框、比例尺…）。</li>
-      <li><b>拖动</b>：点击选中对象后用鼠标或手指拖动；双击文字可编辑。</li>
-      <li><b>图注</b>：点 🎲 从模板库随机，或自行输入。</li>
-      <li><b>导出</b>：选择社媒比例后点 <em>下载 PNG</em>。</li>
+      <li><b>选期刊风格</b>：右侧 <em>00</em> 一键切换 Nature / Science / Cell / IEEE 等排版。</li>
+      <li><b>选布局</b>：单图 / 2×1 / 2×2 等多面板。选多面板后依次上传图片自动填入。</li>
+      <li><b>上传</b>：点击或拖拽图片到画布；手机可 Ctrl+V 粘贴（浏览器支持时）。</li>
+      <li><b>加标注</b>：Annotations 里选元素。选中对象后 <b>Aa</b> 面板自动滚动到视野。</li>
+      <li><b>导出</b>：选比例 → 下载 PNG。</li>
     </ol>
-    <p class="hint">Tip：选中对象后按 <kbd>Delete</kbd> 也能删除。</p>
+    <p class="hint">手机端：点画布上的文字后会自动展开工具面板；调完样式按"收起 ↓ 看图"即可预览。</p>
     <form method="dialog"><button type="submit">好</button></form>
   </article>
 </dialog>
