@@ -790,9 +790,27 @@
     styleStroke.value = a.stroke || "#000000";
   }
 
+  function ensureTextSelection() {
+    let a = currentSel();
+    if (a && TEXT_TYPES.has(a.type)) return a;
+    // 自动选中最近一个文字对象
+    for (let i = state.annotations.length - 1; i >= 0; i--) {
+      if (TEXT_TYPES.has(state.annotations[i].type)) {
+        state.selectedId = state.annotations[i].id;
+        syncStyleControls();
+        btnDelete.disabled = false;
+        render();
+        flash("已自动选中最近的文字对象");
+        return state.annotations[i];
+      }
+    }
+    flash("画布上还没有文字对象，先加一个 (a) 面板标签或文字注释");
+    return null;
+  }
+
   function applyStyleToSel(patch) {
-    const a = currentSel();
-    if (!a || !TEXT_TYPES.has(a.type)) return;
+    const a = ensureTextSelection();
+    if (!a) return;
     Object.assign(a, patch);
     render();
   }
