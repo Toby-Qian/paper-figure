@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Paper Figure Studio — 把照片变成论文配图</title>
+  <meta name="description" content="纯本地运行的伪论文配图编辑器。添加面板标签、箭头、放大框、比例尺与学术图注，一键导出。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead__row">
+    <div class="masthead__left">
+      <span class="journal-mark">◼</span>
+      <span class="journal-name">Journal of Daily Observations</span>
+    </div>
+    <div class="masthead__right">
+      <span>ISSN 0000-0000 · VOL. 01</span>
+    </div>
+  </div>
+  <div class="masthead__rule"></div>
+  <div class="masthead__row masthead__row--sub">
+    <h1 class="masthead__title">Paper&nbsp;Figure&nbsp;Studio <em>— 把任何照片变成论文配图</em></h1>
+    <nav class="masthead__nav">
+      <button id="btnHelp" type="button" class="linkish">? 使用说明</button>
+      <a class="linkish" href="https://toby-qian.github.io/" target="_blank" rel="noreferrer">← Toby</a>
+    </nav>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ============ CANVAS COLUMN ============ -->
+  <section class="stage">
+    <div class="stage__inner">
+      <div class="figure-frame" id="figureFrame">
+        <canvas id="canvas" width="1200" height="900" aria-label="figure canvas"></canvas>
+        <div class="empty-hint" id="emptyHint">
+          <div>
+            <div class="empty-hint__big">↑</div>
+            <p>点击右侧 <b>上传照片</b> 或把图片拖到这里</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="figure-caption-preview">
+        <p id="captionLine"><b>Figure&nbsp;1.</b> <span id="captionText">—</span></p>
+        <p id="citationLine" class="citation">—</p>
+      </div>
+
+      <div class="stage__bar">
+        <div class="stage__bar-left">
+          <button id="btnDelete" type="button" disabled>删除选中</button>
+          <button id="btnClear" type="button">清空标注</button>
+        </div>
+        <div class="stage__bar-right">
+          <span class="ratio-group" role="tablist" aria-label="导出比例">
+            <button data-ratio="4:3" class="ratio on" type="button">4:3</button>
+            <button data-ratio="1:1" class="ratio" type="button">1:1</button>
+            <button data-ratio="3:4" class="ratio" type="button">3:4</button>
+            <button data-ratio="16:9" class="ratio" type="button">16:9</button>
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TOOL PANEL ============ -->
+  <aside class="panel" id="panel">
+    <button class="panel__handle" id="panelHandle" type="button" aria-label="展开工具面板">
+      <span></span>
+    </button>
+
+    <div class="panel__scroll">
+
+      <!-- 1. UPLOAD -->
+      <fieldset class="tool">
+        <legend>01 · Source</legend>
+        <label class="upload" for="fileInput">
+          <input type="file" id="fileInput" accept="image/*" hidden />
+          <span>选择图片 / 拖拽 / 粘贴</span>
+        </label>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="fxGrayscale" /> 黑白</label>
+          <label class="check"><input type="checkbox" id="fxPhotocopy" /> 影印版</label>
+          <label class="check"><input type="checkbox" id="fxHeatmap" /> 伪热力图</label>
+        </div>
+      </fieldset>
+
+      <!-- 2. ANNOTATIONS -->
+      <fieldset class="tool">
+        <legend>02 · Annotations</legend>
+        <div class="tool-grid">
+          <button type="button" data-add="label">+ 面板标签 (a)</button>
+          <button type="button" data-add="arrow">+ 箭头</button>
+          <button type="button" data-add="text">+ 文字注释</button>
+          <button type="button" data-add="zoom">+ 放大框 ×N</button>
+          <button type="button" data-add="scale">+ 比例尺</button>
+          <button type="button" data-add="rect">+ 框选区</button>
+        </div>
+        <p class="hint">点击画布上的对象可拖动；双击文字可编辑。</p>
+      </fieldset>
+
+      <!-- 0. LUCKY -->
+      <fieldset class="tool tool--hero">
+        <legend>★ 一键生成</legend>
+        <button type="button" id="btnLucky" class="primary lucky">🎲 随机整套（图注 + Citation）</button>
+        <p class="hint">不想动脑？点这个。自动按所选主题生成配套文案和引用。</p>
+      </fieldset>
+
+      <!-- 3. CAPTION -->
+      <fieldset class="tool">
+        <legend>03 · Caption</legend>
+        <div class="row">
+          <button type="button" id="btnRandomCn">🎲 中文随机</button>
+          <button type="button" id="btnRandomEn">🎲 English</button>
+        </div>
+        <select id="captionTopic" class="full">
+          <option value="all">全部主题</option>
+          <option value="pet">🐱 宠物</option>
+          <option value="food">🍱 美食</option>
+          <option value="scene">🌅 风景</option>
+          <option value="selfie">🤳 自拍</option>
+          <option value="work">💼 工作</option>
+          <option value="daily">😴 日常</option>
+        </select>
+        <textarea id="captionInput" rows="3" placeholder="Figure 1. 本研究表明……"></textarea>
+        <input type="text" id="figNumber" placeholder="图号（如 Figure 1 / 图 1）" value="Figure 1" />
+      </fieldset>
+
+      <!-- 4. CITATION -->
+      <fieldset class="tool">
+        <legend>04 · Citation</legend>
+        <input type="text" id="citAuthor" placeholder="作者, 如 Qian, T." />
+        <input type="text" id="citYear" placeholder="年份" value="2026" />
+        <input type="text" id="citTitle" placeholder="论文标题" />
+        <input type="text" id="citJournal" placeholder="期刊名 (斜体)" />
+        <input type="text" id="citVolPages" placeholder="卷(期), 页码 如 12, 45-52" />
+        <div class="row">
+          <button type="button" id="btnRandomCite">🎲 随机 Citation</button>
+          <button type="button" id="btnCopyCite">复制 Citation</button>
+        </div>
+      </fieldset>
+
+      <!-- 4.5 TEXT STYLE (for selected annotation) -->
+      <fieldset class="tool" id="styleTool">
+        <legend>Aa · 文字样式（选中对象后生效）</legend>
+        <div class="row">
+          <label class="stack">
+            <span class="tiny">字号</span>
+            <input type="range" id="styleSize" min="12" max="120" step="1" value="28" />
+            <span class="tiny" id="styleSizeVal">28 px</span>
+          </label>
+        </div>
+        <select id="styleFamily" class="full">
+          <option value="serif">Serif — EB Garamond / 衬线（论文感）</option>
+          <option value="sans">Sans — Inter / 无衬线</option>
+          <option value="mono">Mono — JetBrains Mono / 等宽</option>
+          <option value="cnserif">Serif CN — 思源宋体</option>
+        </select>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="styleBold" /> <b>B</b> 粗体</label>
+          <label class="check"><input type="checkbox" id="styleItalic" /> <em>I</em> 斜体</label>
+        </div>
+        <div class="row">
+          <label class="stack">
+            <span class="tiny">颜色</span>
+            <input type="color" id="styleColor" value="#ffffff" />
+          </label>
+          <label class="stack">
+            <span class="tiny">描边（使白字在图上清晰）</span>
+            <input type="color" id="styleStroke" value="#000000" />
+          </label>
+        </div>
+        <p class="hint" id="styleHint">先点画布上的文字对象，再在此调整。</p>
+      </fieldset>
+
+      <!-- 5. EXPORT -->
+      <fieldset class="tool">
+        <legend>05 · Export</legend>
+        <button type="button" id="btnExport" class="primary">⬇ 下载 PNG</button>
+        <button type="button" id="btnCopyCaption">复制图注文案</button>
+        <button type="button" id="btnShareAll">复制 图注 + Citation</button>
+      </fieldset>
+
+      <p class="foot">
+        纯前端 · 零上传 · 数据仅在你的浏览器里。<br />
+        <a href="https://github.com/Toby-Qian/paper-figure" target="_blank" rel="noreferrer">GitHub</a>
+      </p>
+
+    </div>
+  </aside>
+
+</main>
+
+<!-- Help modal -->
+<dialog id="helpDialog" class="help">
+  <article>
+    <h2>Paper Figure Studio — 使用说明</h2>
+    <ol>
+      <li><b>上传</b>：点击或拖拽图片到画布。</li>
+      <li><b>加标注</b>：右侧 <em>Annotations</em> 选择要加的元素（面板标签、箭头、放大框、比例尺…）。</li>
+      <li><b>拖动</b>：点击选中对象后用鼠标或手指拖动；双击文字可编辑。</li>
+      <li><b>图注</b>：点 🎲 从模板库随机，或自行输入。</li>
+      <li><b>导出</b>：选择社媒比例后点 <em>下载 PNG</em>。</li>
+    </ol>
+    <p class="hint">Tip：选中对象后按 <kbd>Delete</kbd> 也能删除。</p>
+    <form method="dialog"><button type="submit">好</button></form>
+  </article>
+</dialog>
+
+<script src="templates.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+.DS_Store
+Thumbs.db
+node_modules/
+*.log
+.vscode/
+.idea/
+.claude/
+
+# 本仓库中无关的本地文件
+extract.py
+out.txt
