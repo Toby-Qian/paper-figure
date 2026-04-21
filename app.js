@@ -100,6 +100,8 @@
     filters: { grayscale: false, photocopy: false, heatmap: false },
     panelLabelSeq: 0,
     journal: "default",
+    caption: { fontSize: 16, family: "serif", bold: false, italic: false, color: "#0e0e0e", stroke: "#ffffff" },
+    captionSelected: false,
   };
 
   const BASE_LONG = 1200;
@@ -114,8 +116,6 @@
     $("#journalName").textContent = j.name;
     $("#journalMeta").textContent = j.meta;
     $$(".j-btn").forEach(b => b.classList.toggle("on", b.dataset.journal === name));
-    // update existing annotations: only change default-styled text families, not user-customized
-    // simple heuristic: if text's family matches any preset default, bump it
     const allDefaults = Object.values(JOURNALS).map(x => x.family);
     for (const a of state.annotations) {
       if (TEXT_TYPES.has(a.type) && allDefaults.includes(a.family)) {
@@ -125,8 +125,25 @@
         if (!a._userColor) a.color = j.accent;
       }
     }
+    // caption: only auto-change family if user hasn't customized it
+    if (!state.caption._userFamily) state.caption.family = j.captionFont;
+    applyCaptionStyle();
     render();
     updateCaptionPreview();
+    if (state.captionSelected) syncStyleControls();
+  }
+
+  function applyCaptionStyle() {
+    const c = state.caption;
+    const block = $("#captionBlock");
+    block.style.fontFamily = FAMILY_MAP[c.family] || FAMILY_MAP.serif;
+    block.style.fontSize = `${c.fontSize}px`;
+    block.style.fontWeight = c.bold ? 700 : 400;
+    block.style.fontStyle = c.italic ? "italic" : "normal";
+    block.style.color = c.color;
+    // citation line stays slightly smaller and italic
+    const cit = $("#citationLine");
+    cit.style.fontSize = `${Math.max(11, c.fontSize - 3)}px`;
   }
 
   // ---------- Layout / grid ----------
@@ -670,6 +687,7 @@
 
   frame.addEventListener("pointerdown", (e) => {
     frame.setPointerCapture(e.pointerId);
+    deselectCaption();
     const p = getCanvasPoint(e);
     const hit = hitTest(p.x, p.y);
     if (hit) {
@@ -774,46 +792,77 @@
   }
 
   function syncStyleControls() {
-    const a = currentSel();
-    const has = a && TEXT_TYPES.has(a.type);
-    styleTool.classList.toggle("disabled", !has);
-    styleHint.textContent = has
-      ? `当前选中：${({label:"面板标签",text:"文字注释",scale:"比例尺"})[a.type]}`
-      : "先点画布上的文字对象，再在此调整。";
-    if (!has) return;
-    styleSize.value = a.fontSize;
-    styleSizeVal.textContent = `${a.fontSize} px`;
-    styleFamily.value = a.family || "serif";
-    styleBold.checked = !!a.bold;
-    styleItalic.checked = !!a.italic;
-    styleColor.value = a.color || "#ffffff";
-    styleStroke.value = a.stroke || "#000000";
+    let target = null;
+    let label = "";
+    if (state.captionSelected) {
+      target = state.caption; label = "图注 / Citation";
+    } else {
+      const a = currentSel();
+      if (a && TEXT_TYPES.has(a.type)) {
+        target = a;
+        label = ({label:"面板标签",text:"文字注释",scale:"比例尺"})[a.type];
+      }
+    }
+    styleTool.classList.toggle("disabled", !target);
+    styleHint.textContent = target
+      ? `当前选中：${label}`
+      : "点画布上的文字对象，或点下方图注，再在此调整。";
+    if (!target) return;
+    styleSize.value = target.fontSize;
+    styleSizeVal.textContent = `${target.fontSize} px`;
+    styleFamily.value = target.family || "serif";
+    styleBold.checked = !!target.bold;
+    styleItalic.checked = !!target.italic;
+    styleColor.value = target.color || "#0e0e0e";
+    styleStroke.value = target.stroke || "#000000";
   }
 
   function ensureTextSelection() {
+    if (state.captionSelected) return state.caption; // caption pseudo-target
     let a = currentSel();
     if (a && TEXT_TYPES.has(a.type)) return a;
-    // 自动选中最近一个文字对象
-    for (let i = state.annotations.length - 1; i >= 0; i--) {
-      if (TEXT_TYPES.has(state.annotations[i].type)) {
-        state.selectedId = state.annotations[i].id;
-        syncStyleControls();
-        btnDelete.disabled = false;
-        render();
-        flash("已自动选中最近的文字对象");
-        return state.annotations[i];
-      }
-    }
-    flash("画布上还没有文字对象，先加一个 (a) 面板标签或文字注释");
-    return null;
+    // 没有选中任何文字对象时，默认落到图注
+    selectCaption();
+    flash("已自动选中图注，调整会作用到图注");
+    return state.caption;
   }
 
   function applyStyleToSel(patch) {
-    const a = ensureTextSelection();
-    if (!a) return;
-    Object.assign(a, patch);
+    const target = ensureTextSelection();
+    if (!target) return;
+    Object.assign(target, patch);
+    // mark user customization so journal switch won't overwrite
+    if (target === state.caption) {
+      if ("family" in patch) target._userFamily = true;
+      applyCaptionStyle();
+    }
     render();
   }
+
+  function selectCaption() {
+    state.captionSelected = true;
+    state.selectedId = null;
+    $("#captionBlock").classList.add("selected");
+    syncStyleControls();
+    btnDelete.disabled = true;
+  }
+  function deselectCaption() {
+    state.captionSelected = false;
+    $("#captionBlock").classList.remove("selected");
+  }
+
+  $("#captionBlock").addEventListener("click", (e) => {
+    e.stopPropagation();
+    selectCaption();
+    if (isMobile()) {
+      openPanel();
+      setTimeout(() => {
+        styleTool.scrollIntoView({ behavior: "smooth", block: "start" });
+        styleTool.classList.add("flash");
+        setTimeout(() => styleTool.classList.remove("flash"), 1200);
+      }, 200);
+    }
+  });
   styleSize.addEventListener("input", () => {
     styleSizeVal.textContent = `${styleSize.value} px`;
     applyStyleToSel({ fontSize: parseInt(styleSize.value, 10) });
@@ -946,17 +995,21 @@
     state.selectedId = null;
     render();
 
-    const j = currentJournal();
-    const capFam = FAMILY_MAP[j.captionFont] || FAMILY_MAP.serif;
+    const c = state.caption;
+    const capFam = FAMILY_MAP[c.family] || FAMILY_MAP.serif;
+    const capWeight = c.bold ? 700 : 500;
+    const capItalic = c.italic ? "italic " : "";
 
     const padH = 32, padV = 28;
-    const capFont = 22;
-    const citFont = 16;
+    // scale caption font: preview is ~16px, export canvas is typically 1200px wide.
+    // Map the user-chosen size onto the export pixel space so it reads 1:1 with preview
+    const capFont = Math.max(14, Math.round(c.fontSize * 1.4));
+    const citFont = Math.max(11, capFont - 6);
     const lineGap = 10;
 
     const tmp = document.createElement("canvas");
     const tctx = tmp.getContext("2d");
-    tctx.font = `500 ${capFont}px ${capFam}`;
+    tctx.font = `${capItalic}${capWeight} ${capFont}px ${capFam}`;
     const fig = figNumberInput.value.trim() || "Figure 1";
     const capBody = captionInput.value.trim();
     const fullCaption = `${fig}. ${capBody}`;
@@ -978,17 +1031,17 @@
     octx.fillRect(0, 0, out.width, out.height);
     octx.drawImage(canvas, 0, 0);
 
-    octx.fillStyle = "#0c0c0c";
+    octx.fillStyle = c.color || "#0c0c0c";
     octx.textBaseline = "top";
-    octx.font = `500 ${capFont}px ${capFam}`;
+    octx.font = `${capItalic}${capWeight} ${capFont}px ${capFam}`;
     let y = canvas.height + padV;
     capLines.forEach((ln, i) => {
       if (i === 0) {
         const prefix = fig + ". ";
-        octx.font = `700 ${capFont}px ${capFam}`;
+        octx.font = `${capItalic}700 ${capFont}px ${capFam}`;
         octx.fillText(prefix, padH, y);
         const w = octx.measureText(prefix).width;
-        octx.font = `500 ${capFont}px ${capFam}`;
+        octx.font = `${capItalic}${capWeight} ${capFont}px ${capFam}`;
         octx.fillText(ln.slice(prefix.length), padH + w, y);
       } else {
         octx.fillText(ln, padH, y);

@@ -189,8 +189,17 @@ kbd {
   font-family: var(--serif);
   font-size: 14px;
   line-height: 1.45;
-  padding: 2px 2px 0;
+  padding: 6px 8px;
   color: var(--ink);
+  border: 1px dashed transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.figure-caption-preview:hover { border-color: var(--line-soft); }
+.figure-caption-preview.selected {
+  border-color: var(--accent);
+  background: rgba(10, 92, 255, 0.04);
 }
 .figure-caption-preview p { margin: 0 0 4px; }
 .figure-caption-preview .citation {
