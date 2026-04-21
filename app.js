@@ -157,7 +157,14 @@
       : `当前布局：${cols}×${rows} = ${n} 图`;
     // trim images to fit
     state.images = state.images.slice(0, n);
+    // 清理自动面板标签：单图布局移除全部，多图布局移除超出范围的
+    state.annotations = state.annotations.filter(a => {
+      if (a._auto === undefined) return true;
+      if (n < 2) return false;
+      return a._auto < n;
+    });
     fitAllImages();
+    maybeAddPanelLabels();
     render();
   }
 
@@ -863,6 +870,15 @@
       }, 200);
     }
   });
+  // 手机端 peek 模式：拖动字号时让面板半透明，露出画布预览
+  function enterPeek() { if (isMobile()) document.body.classList.add("peeking"); }
+  function exitPeek()  { document.body.classList.remove("peeking"); }
+  styleSize.addEventListener("pointerdown", enterPeek);
+  styleSize.addEventListener("pointerup", exitPeek);
+  styleSize.addEventListener("pointercancel", exitPeek);
+  styleSize.addEventListener("focus", enterPeek);
+  styleSize.addEventListener("blur", exitPeek);
+
   styleSize.addEventListener("input", () => {
     styleSizeVal.textContent = `${styleSize.value} px`;
     applyStyleToSel({ fontSize: parseInt(styleSize.value, 10) });
