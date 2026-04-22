@@ -1,108 +1,110 @@
 # 📑 Paper Figure Studio
 
-> **把任何照片变成一张论文配图。** 纯本地运行、零上传、一键随机学术文案。
+**English** 🌍 | [简体中文](README_zh.md) 🇨🇳
 
-在浏览器里给日常照片贴上 `(a)(b)` 面板标签、红色虚线放大框、箭头、比例尺和图注 caption，导出一张"像从 Nature 里扒下来"的配图。配套有内置的中英双语学术模板库，连配图说明和假 Citation 都帮你想好了。
+> **Turn any photo into a paper figure.** Runs entirely in the browser — no uploads, one click for a random academic caption.
 
-**在线体验**：<https://toby-qian.github.io/paper-figure/>
+Drop in a daily snapshot, stamp it with `(a)(b)` panel labels, red dashed zoom-boxes, arrows, scale bars and a caption — and walk away with an image that looks like it was ripped straight out of *Nature*. A bilingual template library ships with it, so the figure caption and fake citation are written for you.
 
----
-
-## ✨ 特性
-
-- **🖼 画布编辑器**：上传 / 拖拽 / 粘贴图片，添加多种学术元素
-  - `(a)(b)(c)` 面板标签
-  - 箭头 + 说明文字
-  - 红色虚线框 + 自动放大镜（从原图裁切 `×N` 倍放大）
-  - 比例尺（带 μm / cm / nm 文字）
-  - 自由文字注释
-- **🎨 滤镜**：黑白 / 影印版模糊 / 伪热力图
-- **Aa 字体控制**：任何文字对象都可选中调整字号、衬线/无衬线、粗体/斜体、填充色 + 描边色
-- **🎲 模板库**（80+ 条中英双语图注）
-  - 6 大主题：宠物 / 美食 / 风景 / 自拍 / 工作 / 日常
-  - 占位符随机填充，每次都不重样
-- **📚 自动 Citation**：假作者、假期刊名（*Purr Review Letters*、*Lying-Flat Quarterly*、*IEEE Trans. on Procrastination* …）、卷/期/页码一键生成
-- **⚡ 一键随机整套**：图注 + 引用 + 图号一次搞定，不需要动脑
-- **📱 完整响应式**：桌面左画布+右面板；手机底部可滑抽屉
-- **📤 多比例导出**：4:3 / 1:1 / 3:4 / 16:9，PNG 自动拼接图注 + Citation，适配小红书 / 微博 / 朋友圈
-- **🔒 纯前端**：零依赖、零后端、零上传，所有数据只在你的浏览器里
+**Live demo**: <https://toby-qian.github.io/paper-figure/>
 
 ---
 
-## 🚀 在线使用
+## ✨ Features
 
-直接打开 <https://toby-qian.github.io/paper-figure/>
+- **🖼 Canvas editor** — upload / drag / paste an image, then add academic furniture:
+  - `(a)(b)(c)` panel labels
+  - Arrows with text
+  - Red dashed zoom boxes with an auto-generated magnified inset (`×N` crop from the source)
+  - Scale bars (μm / cm / nm)
+  - Free-form text annotations
+- **🎨 Filters** — grayscale, photocopy blur, pseudo-heatmap
+- **Aa text controls** — any text object can be reselected to tweak font size, serif / sans, bold / italic, fill & stroke color
+- **🎲 Template library** (80+ bilingual captions)
+  - 6 topics: pets / food / landscape / selfie / work / daily life
+  - Placeholders are randomly filled, so no two runs look alike
+- **📚 Auto citation** — fake authors, fake journals (*Purr Review Letters*, *Lying-Flat Quarterly*, *IEEE Trans. on Procrastination* …), volume / issue / pages, all one click away
+- **⚡ One-click full random** — caption, citation and figure number generated together; zero thinking required
+- **📱 Fully responsive** — canvas left, panel right on desktop; swipe-up drawer on mobile
+- **📤 Multi-ratio export** — 4:3 / 1:1 / 3:4 / 16:9, with caption & citation composited onto the PNG, ready for Xiaohongshu / Weibo / WeChat
+- **🔒 100% front-end** — no dependencies, no backend, no uploads; your image never leaves the tab
 
 ---
 
-## 🛠 本地运行
+## 🚀 Try it online
+
+Just open <https://toby-qian.github.io/paper-figure/>
+
+---
+
+## 🛠 Run locally
 
 ```bash
 git clone https://github.com/Toby-Qian/paper-figure.git
 cd paper-figure
 
-# 任选一种方式启动静态服务器
+# Serve it with anything — pick one:
 python -m http.server 8000
-# 或
+# or
 npx serve .
 ```
 
-浏览器访问 <http://localhost:8000>
+Then visit <http://localhost:8000>.
 
-> ⚠️ 不要直接双击 `index.html`（`file://` 协议下剪贴板粘贴图片会受限）。
-
----
-
-## 🖱 使用流程
-
-1. **上传图片**：点击右侧 `01 · Source` 区，或把图拖到画布、或直接 `Ctrl+V` 粘贴
-2. **选主题**（可选）：在 `03 · Caption` 选宠物 / 美食 / 风景 / 自拍 / 工作 / 日常
-3. **一键随机**：点红色 **🎲 随机整套** 按钮，图注与 Citation 同时出现
-4. **加标注**：在 `02 · Annotations` 点"+ 面板标签"、"+ 箭头"、"+ 放大框"…
-   - 点画布上的对象可拖动
-   - 双击文字可改字
-   - 选中后右侧 `Aa · 文字样式` 面板可改字号和字体
-   - 选中后按 <kbd>Delete</kbd> 删除
-5. **导出**：选比例（4:3 / 1:1 …）→ 点 `⬇ 下载 PNG`
-
-## 📷 效果示例
-
-> *正在补充截图…如果你用它做了有趣的图，欢迎 PR 或 issue 投稿。*
+> ⚠️ Don't just double-click `index.html`. The `file://` protocol blocks clipboard paste in most browsers.
 
 ---
 
-## 🏗 技术栈
+## 🖱 Workflow
 
-| 层 | 选型 | 说明 |
+1. **Upload** — click the `01 · Source` area, drop an image on the canvas, or press `Ctrl+V` to paste.
+2. **Pick a topic** *(optional)* — pets / food / landscape / selfie / work / daily under `03 · Caption`.
+3. **Roll the dice** — hit the red **🎲 Random** button; caption and citation appear together.
+4. **Annotate** — in `02 · Annotations` add panel labels, arrows, zoom boxes…
+   - Click an object to drag it
+   - Double-click text to edit it
+   - The right-hand `Aa · Text style` panel adjusts the selected text
+   - Press <kbd>Delete</kbd> to remove the selection
+5. **Export** — choose an aspect ratio (4:3 / 1:1 / …) and hit `⬇ Download PNG`.
+
+## 📷 Examples
+
+> *Screenshots coming soon — PRs with your own figures are welcome.*
+
+---
+
+## 🏗 Tech stack
+
+| Layer | Choice | Notes |
 |---|---|---|
-| UI | 纯 HTML + CSS | 无框架，Google Fonts (EB Garamond / Inter / JetBrains Mono) |
-| 画布 | Canvas 2D API | 原生绘制，无 Fabric.js / Konva 依赖 |
-| 交互 | Pointer Events | 鼠标 + 触屏统一 |
-| 模板 | 静态 JSON | `templates.js` 可自由扩充 |
-| 打包 | 无 | 直接 `<script>` 引入，零构建 |
+| UI | Vanilla HTML + CSS | No framework, Google Fonts (EB Garamond / Inter / JetBrains Mono) |
+| Canvas | Canvas 2D API | Hand-rolled rendering — no Fabric.js / Konva |
+| Input | Pointer Events | Unified mouse + touch |
+| Templates | Static JSON | Extend `templates.js` freely |
+| Build | None | Plain `<script>` tags, zero build step |
 
-文件结构：
+File layout:
 
 ```
 paper-figure/
-├── index.html        页面结构
-├── style.css         样式 + 响应式
-├── app.js            Canvas 编辑器（~650 行）
-├── templates.js      图注 / Citation 模板库
+├── index.html        page shell
+├── style.css         styles + responsive rules
+├── app.js            Canvas editor (~650 lines)
+├── templates.js      caption / citation pools
 └── README.md
 ```
 
 ---
 
-## 📝 扩展模板
+## 📝 Adding templates
 
-想加新主题或新文案？直接编辑 `templates.js`：
+Drop a new topic or line straight into `templates.js`:
 
 ```js
 window.CAPTION_TEMPLATES.newTopic = [
   { cn: "你的中文模板，{val} 是占位符。",
-    en: "Your English template with {val} as placeholder." },
-  // …更多
+    en: "Your English template, {val} is a placeholder." },
+  // …more
 ];
 window.FILL_POOLS.newTopic = {
   val: ["12", "34", "56"],
@@ -110,33 +112,33 @@ window.FILL_POOLS.newTopic = {
 };
 ```
 
-再把 `<select id="captionTopic">` 加上一个 `<option value="newTopic">`即可。
+Then register it as an `<option value="newTopic">` under `<select id="captionTopic">`.
 
 ---
 
-## 📦 部署到 GitHub Pages
+## 📦 Deploying to GitHub Pages
 
-本仓库已配置好根目录直接发布：
+The repo is already configured for root-directory publishing:
 
 ```bash
-# 推到 main 分支
+# Push to main
 git push
 
-# 仓库 Settings → Pages → Source: Deploy from branch (main / root)
+# Repo → Settings → Pages → Source: Deploy from branch (main / root)
 ```
 
-几分钟后 `https://<user>.github.io/paper-figure/` 自动可用。
+A few minutes later `https://<user>.github.io/paper-figure/` goes live.
 
 ---
 
-## 💡 致谢 & 灵感
+## 💡 Inspiration
 
-灵感来自社交媒体上流传的"把日常照片 P 成伪论文配图"创意，以及所有在严肃学术格式里藏段子的研究生。
+Inspired by the running internet joke of P-shopping everyday photos into fake paper figures, and every grad student who's ever hidden a punchline inside a legitimate-looking caption.
 
 ---
 
-## 📜 许可
+## 📜 License
 
 [MIT](LICENSE) © 2026 [Toby Qian](https://toby-qian.github.io)
 
-> 做出的图如果要投稿真期刊请自行处理。作者不为图注内容中的任何虚构统计值负责。
+> If you actually submit one of these to a real journal, you're on your own. The author takes no responsibility for any fabricated statistics that appear in the generated captions.
